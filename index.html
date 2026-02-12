@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Junks Finanças Elite v22</title>
+    <title>Junks Finanças Elite v23</title>
     <style>
         :root {
             --bg: #0b0f1a; --card: #161e2e; --accent: #00d084;
@@ -37,8 +37,14 @@
         .tag { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
         .tag-fixo { background: rgba(0, 208, 132, 0.2); color: var(--accent); border: 1px solid var(--accent); }
         .btn-del-gasto { background: none; color: var(--danger); border: none; padding: 10px; font-size: 18px; cursor: pointer; margin-left: 5px; }
+
+        /* Resumo Final */
+        .resumo-final { margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 15px; border: 1px dashed #2d3748; }
+        .resumo-line { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; color: var(--sub); }
+        .resumo-line b { color: var(--text); }
     </style>
-</head><link rel="manifest" href="manifest.json">
+</head>
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000000">
 <body>
 
@@ -95,7 +101,16 @@
 
     <div class="card">
         <h3>⚙️ Configurações</h3>
-        <input type="number" id="limiteInput" placeholder="Limite mensal R$" oninput="salvarLimite()">
+        <div class="grid">
+            <div>
+                <label style="font-size:10px; color:var(--sub)">LIMITE MENSAL</label>
+                <input type="number" id="limiteInput" placeholder="0.00" oninput="salvarValores()">
+            </div>
+            <div>
+                <label style="font-size:10px; color:var(--sub)">SALDO EM CONTA</label>
+                <input type="number" id="saldoContaInput" placeholder="0.00" oninput="salvarValores()">
+            </div>
+        </div>
         <div class="grid">
             <button class="btn-small" style="background:#2d3748; color:white; padding:12px;" onclick="exportarDados()">📤 Exportar</button>
             <button class="btn-small" style="background:#2d3748; color:white; padding:12px;" onclick="document.getElementById('fileInput').click()">📥 Importar</button>
@@ -104,10 +119,11 @@
     </div>
 
     <div id="containerGastos"></div>
+    <div id="resumoTotais" class="resumo-final"></div>
 </div>
 
 <script>
-    const KEY = "JUNKS_V22_FINAL";
+    const KEY = "JUNKS_V23_FINAL";
     let db = JSON.parse(localStorage.getItem(KEY)) || { meses: {}, fixosMestre: [], inv: [] };
 
     const inputMes = document.getElementById("mesSelecao");
@@ -119,7 +135,7 @@
 
     function carregarTudo() {
         const mes = inputMes.value;
-        if (!db.meses[mes]) db.meses[mes] = { limite: 0, itens: [] };
+        if (!db.meses[mes]) db.meses[mes] = { limite: 0, saldoConta: 0, itens: [] };
         
         const pendentes = db.fixosMestre.filter(f => !db.meses[mes].itens.some(i => i.d === f.d));
         if (pendentes.length > 0) {
@@ -131,6 +147,7 @@
             }
         }
         document.getElementById("limiteInput").value = db.meses[mes].limite || "";
+        document.getElementById("saldoContaInput").value = db.meses[mes].saldoConta || "";
         render();
     }
 
@@ -150,9 +167,9 @@
             let dt = new Date(inputMes.value + "-01");
             dt.setMonth(dt.getMonth() + i);
             let mF = dt.toISOString().slice(0, 7);
-            if(!db.meses[mF]) db.meses[mF] = { limite: 0, itens: [] };
+            if(!db.meses[mF]) db.meses[mF] = { limite: 0, saldoConta: 0, itens: [] };
             db.meses[mF].itens.push({ 
-                id: Date.now() + Math.random(), // ID único e robusto
+                id: Date.now() + Math.random(),
                 d: d + (p > 1 ? ` (${i+1}/${p})` : ""), 
                 v: v/p, 
                 cat: (fixo && p === 1) ? 'fixo' : (p > 1 ? 'parcelado' : 'normal') 
@@ -162,7 +179,6 @@
         salvar();
     }
 
-    // FUNÇÃO CORRIGIDA PARA EXCLUIR
     function delGasto(id) {
         if(confirm("Deseja excluir este gasto?")) {
             const mes = inputMes.value;
@@ -171,74 +187,27 @@
         }
     }
 
-    function abrirModalInv(id = null) {
-        document.getElementById("modalInv").style.display = "flex";
-        if(id) {
-            const i = db.inv.find(x => x.id === id);
-            document.getElementById("editIdx").value = id;
-            document.getElementById("invNome").value = i.b;
-            document.getElementById("invSaldo").value = i.s;
-            document.getElementById("invMoeda").value = i.m;
-        } else {
-            document.getElementById("editIdx").value = "";
-            document.getElementById("invNome").value = "";
-            document.getElementById("invSaldo").value = "";
-            document.getElementById("invMoeda").value = "BRL";
-        }
-    }
-
-    function salvarModalInv() {
-        const id = document.getElementById("editIdx").value;
-        const nome = document.getElementById("invNome").value;
-        const saldo = parseFloat(document.getElementById("invSaldo").value) || 0;
-        const moeda = document.getElementById("invMoeda").value;
-        if(!nome) return;
-        if(id) {
-            const i = db.inv.find(x => x.id == id);
-            i.b = nome; i.s = saldo; i.m = moeda;
-        } else {
-            db.inv.push({ id: Date.now(), b: nome, s: saldo, m: moeda });
-        }
+    function salvarValores() {
+        const mes = inputMes.value;
+        db.meses[mes].limite = parseFloat(document.getElementById("limiteInput").value) || 0;
+        db.meses[mes].saldoConta = parseFloat(document.getElementById("saldoContaInput").value) || 0;
         salvar();
-        fecharModalInv();
     }
 
-    function fecharModalInv() { document.getElementById("modalInv").style.display = "none"; }
-    function delInv(id) { if(confirm("Remover banco?")) { db.inv = db.inv.filter(x => x.id !== id); salvar(); } }
-    function addVInv(id) {
-        const i = db.inv.find(x => x.id === id);
-        const v = prompt(`Adicionar ao saldo de ${i.b}?`);
-        if(v) { i.s += parseFloat(v.replace(',','.')); salvar(); }
-    }
-
-    function salvarLimite() { db.meses[inputMes.value].limite = parseFloat(document.getElementById("limiteInput").value) || 0; salvar(); }
     function salvar() { localStorage.setItem(KEY, JSON.stringify(db)); render(); }
-
-    function exportarDados() {
-        const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'financas_backup.json';
-        a.click();
-    }
-
-    function importarDados(event) {
-        const reader = new FileReader();
-        reader.onload = (e) => { 
-            db = JSON.parse(e.target.result); 
-            salvar(); 
-            alert("Backup Restaurado!"); 
-        };
-        reader.readAsText(event.target.files[0]);
-    }
 
     function render() {
         const mes = db.meses[inputMes.value];
         const container = document.getElementById("containerGastos");
         const invL = document.getElementById("investList");
+        const resumoDiv = document.getElementById("resumoTotais");
+        
         container.innerHTML = ""; invL.innerHTML = "";
+        
         let totalGeral = 0, tBRL = 0, tEUR = 0;
+        let sFixo = 0, sParc = 0, sUnico = 0;
 
+        // Investimentos
         db.inv.forEach(i => {
             if(i.m === 'EUR') tEUR += i.s; else tBRL += i.s;
             invL.innerHTML += `<div class="item" style="flex-direction:column; align-items:flex-start; padding: 10px; border-left: 4px solid ${i.m === 'EUR' ? 'var(--euro)' : 'var(--accent)'}">
@@ -255,11 +224,16 @@
         document.getElementById("patrimonioBRL").innerText = fMoeda(tBRL, 'BRL');
         document.getElementById("patrimonioEUR").innerText = fMoeda(tEUR, 'EUR');
 
+        // Gastos
         const renderSecao = (lista, titulo, tagClass, tagText) => {
             if(lista.length === 0) return;
             container.innerHTML += `<div class="section-title">${titulo}</div>`;
             lista.forEach(i => {
                 totalGeral += i.v;
+                if(i.cat === 'fixo') sFixo += i.v;
+                else if(i.cat === 'parcelado') sParc += i.v;
+                else sUnico += i.v;
+
                 container.innerHTML += `<div class="item">
                     <div>${i.d} <span class="tag ${tagClass}">${tagText}</span></div>
                     <div style="display:flex; align-items:center;">
@@ -269,21 +243,82 @@
                 </div>`;
             });
         };
+        
         const itens = mes.itens || [];
         renderSecao(itens.filter(i => i.cat === 'fixo'), "Fixos Mensais", "tag-fixo", "FIXO");
         renderSecao(itens.filter(i => i.cat === 'parcelado'), "Compras Parceladas", "tag-parc", "PARCELA");
         renderSecao(itens.filter(i => i.cat === 'normal' || !i.cat), "Despesas do Mês", "tag-norm", "ÚNICO");
 
-        const sobra = (mes.limite || 0) - totalGeral;
+        // Resumo de Totais
+        resumoDiv.innerHTML = `
+            <h3 style="margin-bottom:10px; font-size:10px;">Resumo da Movimentação</h3>
+            <div class="resumo-line">Fixos: <b>${fMoeda(sFixo)}</b></div>
+            <div class="resumo-line">Parcelas: <b>${fMoeda(sParc)}</b></div>
+            <div class="resumo-line">Únicos: <b>${fMoeda(sUnico)}</b></div>
+            <div class="resumo-line" style="margin-top:8px; border-top:1px solid #2d3748; padding-top:5px; color:var(--text)">Total Gasto: <b>${fMoeda(totalGeral)}</b></div>
+        `;
+
+        // Cálculo Saldo Livre (Limite + Saldo Conta - Gastos)
+        const saldoDisponivel = (mes.limite || 0) + (mes.saldoConta || 0);
+        const sobra = saldoDisponivel - totalGeral;
+        
         const display = document.getElementById("sobraDisplay");
         display.innerText = fMoeda(sobra);
         display.style.color = sobra < 0 ? "var(--danger)" : "var(--accent)";
     }
+
+    // Funções auxiliares (Ivestimentos e Modal mantidos)
+    function abrirModalInv(id = null) {
+        document.getElementById("modalInv").style.display = "flex";
+        if(id) {
+            const i = db.inv.find(x => x.id === id);
+            document.getElementById("editIdx").value = id;
+            document.getElementById("invNome").value = i.b;
+            document.getElementById("invSaldo").value = i.s;
+            document.getElementById("invMoeda").value = i.m;
+        } else {
+            document.getElementById("editIdx").value = "";
+            document.getElementById("invNome").value = "";
+            document.getElementById("invSaldo").value = "";
+            document.getElementById("invMoeda").value = "BRL";
+        }
+    }
+    function salvarModalInv() {
+        const id = document.getElementById("editIdx").value;
+        const nome = document.getElementById("invNome").value;
+        const saldo = parseFloat(document.getElementById("invSaldo").value) || 0;
+        const moeda = document.getElementById("invMoeda").value;
+        if(!nome) return;
+        if(id) {
+            const i = db.inv.find(x => x.id == id);
+            i.b = nome; i.s = saldo; i.m = moeda;
+        } else {
+            db.inv.push({ id: Date.now(), b: nome, s: saldo, m: moeda });
+        }
+        salvar();
+        fecharModalInv();
+    }
+    function fecharModalInv() { document.getElementById("modalInv").style.display = "none"; }
+    function delInv(id) { if(confirm("Remover banco?")) { db.inv = db.inv.filter(x => x.id !== id); salvar(); } }
+    function addVInv(id) {
+        const i = db.inv.find(x => x.id === id);
+        const v = prompt(`Adicionar ao saldo de ${i.b}?`);
+        if(v) { i.s += parseFloat(v.replace(',','.')); salvar(); }
+    }
+    function exportarDados() {
+        const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'financas_backup.json';
+        a.click();
+    }
+    function importarDados(event) {
+        const reader = new FileReader();
+        reader.onload = (e) => { db = JSON.parse(e.target.result); salvar(); alert("Backup Restaurado!"); };
+        reader.readAsText(event.target.files[0]);
+    }
+
     carregarTudo();
-</script><script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js");
-}
 </script>
 </body>
 </html>
