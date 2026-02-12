@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Junks Finanças Elite v21</title>
+    <style>
+        :root {
+            --bg: #0b0f1a; --card: #161e2e; --accent: #00d084;
+            --blue: #3b82f6; --danger: #ff4d4d; --text: #ffffff; --sub: #94a3b8;
+            --euro: #ffcc00;
+        }
+        body { font-family: sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 15px; padding-bottom: 80px; }
+        .container { max-width: 480px; margin: auto; }
+        
+        .main-balance { text-align: center; padding: 25px 0; background: linear-gradient(180deg, rgba(0, 208, 132, 0.1) 0%, rgba(0,0,0,0) 100%); border-radius: 30px; margin-bottom: 10px; }
+        .main-balance h1 { font-size: 38px; margin: 5px 0; color: var(--accent); }
+
+        .card { background: var(--card); padding: 18px; border-radius: 22px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); }
+        h3 { margin: 0 0 12px 0; font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: 1px; }
+
+        input, select { width: 100%; padding: 14px; margin-bottom: 10px; border-radius: 12px; border: 1px solid #2d3748; background: #0b0f1a; color: white; font-size: 16px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; border-radius: 12px; border: none; background: var(--accent); color: #000; font-weight: bold; font-size: 16px; cursor: pointer; }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn-small { width: auto; padding: 6px 10px; font-size: 10px; cursor: pointer; border-radius: 8px; border:none; margin: 2px; font-weight: bold; }
+        
+        #modalInv { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:100; align-items:center; justify-content:center; }
+        .modal-content { background:var(--card); width:85%; padding:20px; border-radius:25px; border:1px solid var(--blue); }
+
+        .total-row { display: flex; justify-content: space-between; margin-top: 5px; }
+        .total-invest-val { font-size: 22px; font-weight: bold; }
+        
+        .section-title { font-size: 11px; color: var(--sub); margin: 15px 0 8px 5px; font-weight: bold; text-transform: uppercase; }
+        .item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.02); border-radius: 12px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.05); }
+        
+        .tag { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
+        .tag-fixo { background: rgba(0, 208, 132, 0.2); color: var(--accent); border: 1px solid var(--accent); }
+    </style>
+</head>
+<body>
+
+<div id="modalInv">
+    <div class="modal-content">
+        <h2 id="modalTitle" style="font-size:18px; margin-top:0;">Investimento</h2>
+        <input type="hidden" id="editIdx">
+        <input type="text" id="invNome" placeholder="Nome do Banco">
+        <input type="number" id="invSaldo" placeholder="Saldo Atual" step="0.01">
+        <select id="invMoeda">
+            <option value="BRL">Real (R$)</option>
+            <option value="EUR">Euro (€)</option>
+        </select>
+        <div class="grid">
+            <button onclick="salvarModalInv()" style="background:var(--accent)">Salvar</button>
+            <button onclick="fecharModalInv()" style="background:var(--danger); color:white">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="main-balance">
+        <small style="color: var(--sub)">SALDO LIVRE NO MÊS</small>
+        <h1 id="sobraDisplay">R$ 0,00</h1>
+    </div>
+
+    <input type="month" id="mesSelecao" onchange="carregarTudo()">
+
+    <div class="card">
+        <h3>📈 Patrimônio</h3>
+        <div class="total-row">
+            <div><small style="color:var(--sub)">TOTAL R$</small><br><span id="patrimonioBRL" class="total-invest-val" style="color:var(--accent)">R$ 0,00</span></div>
+            <div style="text-align: right;"><small style="color:var(--sub)">TOTAL €</small><br><span id="patrimonioEUR" class="total-invest-val" style="color:var(--euro)">€ 0,00</span></div>
+        </div>
+        <div id="investList" style="margin-top:15px;"></div>
+        <button onclick="abrirModalInv()" style="background:var(--blue); color:white; padding:10px; font-size:12px; margin-top:10px; width: auto;">+ Novo Banco</button>
+    </div>
+
+    <div class="card">
+        <h3>💸 Novo Gasto</h3>
+        <input type="text" id="desc" placeholder="Ex: Mercado, Aluguer...">
+        <div class="grid">
+            <input type="number" id="val" placeholder="Valor" step="0.01">
+            <select id="parcelas">
+                <option value="1">À vista / Mensal</option>
+                <script>for(let i=2; i<=18; i++) document.write(`<option value="${i}">${i}x</option>`);</script>
+            </select>
+        </div>
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+            <label style="font-size:13px; color:var(--accent); font-weight:bold;"><input type="checkbox" id="isFixo" style="width:18px; height:18px; vertical-align:middle;"> FIXO?</label>
+            <button onclick="addGasto()" style="width:50%;">Lançar</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>⚙️ Configuração & Backup</h3>
+        <input type="number" id="limiteInput" placeholder="Limite mensal R$" oninput="salvarLimite()">
+        <div class="grid">
+            <button class="btn-small" style="background:#2d3748; color:white; padding:12px;" onclick="exportarDados()">📤 Exportar</button>
+            <button class="btn-small" style="background:#2d3748; color:white; padding:12px;" onclick="document.getElementById('fileInput').click()">📥 Importar</button>
+            <input type="file" id="fileInput" style="display:none" onchange="importarDados(event)">
+        </div>
+    </div>
+
+    <div id="containerGastos"></div>
+</div>
+
+<script>
+    const KEY = "JUNKS_V21_FINAL";
+    let db = JSON.parse(localStorage.getItem(KEY)) || { meses: {}, fixosMestre: [], inv: [] };
+
+    const inputMes = document.getElementById("mesSelecao");
+    if(!inputMes.value) inputMes.value = new Date().toISOString().slice(0, 7);
+
+    function fMoeda(v, moeda = 'BRL') {
+        return v.toLocaleString(moeda === 'EUR' ? 'de-DE' : 'pt-BR', { style: 'currency', currency: moeda });
+    }
+
+    // --- AJUSTE DOS GASTOS FIXOS ---
+    function carregarTudo() {
+        const mes = inputMes.value;
+        if (!db.meses[mes]) db.meses[mes] = { limite: 0, itens: [] };
+        
+        // Verifica se há fixos mestre que não estão no mês atual
+        const pendentes = db.fixosMestre.filter(f => !db.meses[mes].itens.some(i => i.d === f.d));
+        
+        if (pendentes.length > 0) {
+            if (confirm(`Existem ${pendentes.length} gastos fixos pendentes para este mês. Deseja importá-los agora?`)) {
+                importarFixosAutomatico(mes, pendentes);
+                return; // O render será chamado dentro do salvar()
+            }
+        }
+
+        document.getElementById("limiteInput").value = db.meses[mes].limite || "";
+        render();
+    }
+
+    function importarFixosAutomatico(mes, lista) {
+        lista.forEach(f => {
+            db.meses[mes].itens.push({...f, id: Date.now() + Math.random(), cat: 'fixo'});
+        });
+        salvar();
+    }
+
+    // --- GESTÃO DE GASTOS ---
+    function addGasto() {
+        const d = document.getElementById("desc").value;
+        const v = parseFloat(document.getElementById("val").value);
+        const p = parseInt(document.getElementById("parcelas").value);
+        const fixo = document.getElementById("isFixo").checked;
+
+        if(!d || isNaN(v)) return;
+
+        if(fixo && p === 1) {
+            if(!db.fixosMestre.some(f => f.d === d)) {
+                db.fixosMestre.push({d, v, cat: 'fixo'});
+            }
+        }
+
+        for(let i=0; i<p; i++) {
+            let dt = new Date(inputMes.value + "-01");
+            dt.setMonth(dt.getMonth() + i);
+            let mF = dt.toISOString().slice(0, 7);
+            if(!db.meses[mF]) db.meses[mF] = { limite: 0, itens: [] };
+            db.meses[mF].itens.push({ 
+                id: Date.now()+i, 
+                d: d + (p > 1 ? ` (${i+1}/${p})` : ""), 
+                v: v/p, 
+                cat: (fixo && p === 1) ? 'fixo' : (p > 1 ? 'parcelado' : 'normal') 
+            });
+        }
+        document.getElementById("desc").value = ""; document.getElementById("val").value = "";
+        salvar();
+    }
+
+    // --- INVESTIMENTOS ---
+    function abrirModalInv(id = null) {
+        document.getElementById("modalInv").style.display = "flex";
+        if(id) {
+            const i = db.inv.find(x => x.id === id);
+            document.getElementById("editIdx").value = id;
+            document.getElementById("invNome").value = i.b;
+            document.getElementById("invSaldo").value = i.s;
+            document.getElementById("invMoeda").value = i.m;
+        } else {
+            document.getElementById("editIdx").value = "";
+            document.getElementById("invNome").value = "";
+            document.getElementById("invSaldo").value = "";
+            document.getElementById("invMoeda").value = "BRL";
+        }
+    }
+
+    function salvarModalInv() {
+        const id = document.getElementById("editIdx").value;
+        const nome = document.getElementById("invNome").value;
+        const saldo = parseFloat(document.getElementById("invSaldo").value) || 0;
+        const moeda = document.getElementById("invMoeda").value;
+        if(!nome) return;
+        if(id) {
+            const i = db.inv.find(x => x.id == id);
+            i.b = nome; i.s = saldo; i.m = moeda;
+        } else {
+            db.inv.push({ id: Date.now(), b: nome, s: saldo, m: moeda });
+        }
+        salvar();
+        fecharModalInv();
+    }
+
+    function fecharModalInv() { document.getElementById("modalInv").style.display = "none"; }
+    function delInv(id) { if(confirm("Remover banco?")) { db.inv = db.inv.filter(x => x.id !== id); salvar(); } }
+    function addVInv(id) {
+        const i = db.inv.find(x => x.id === id);
+        const v = prompt(`Adicionar ao saldo de ${i.b}?`);
+        if(v) { i.s += parseFloat(v.replace(',','.')); salvar(); }
+    }
+
+    // --- SISTEMA ---
+    function delGasto(id) { db.meses[inputMes.value].itens = db.meses[inputMes.value].itens.filter(x => x.id !== id); salvar(); }
+    function salvarLimite() { db.meses[inputMes.value].limite = parseFloat(document.getElementById("limiteInput").value) || 0; salvar(); }
+    function salvar() { localStorage.setItem(KEY, JSON.stringify(db)); carregarTudo(); }
+
+    function exportarDados() {
+        const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'financas_backup.json';
+        a.click();
+    }
+
+    function importarDados(event) {
+        const reader = new FileReader();
+        reader.onload = (e) => { 
+            db = JSON.parse(e.target.result); 
+            salvar(); 
+            alert("Backup Restaurado!"); 
+        };
+        reader.readAsText(event.target.files[0]);
+    }
+
+    function render() {
+        const mes = db.meses[inputMes.value];
+        const container = document.getElementById("containerGastos");
+        const invL = document.getElementById("investList");
+        container.innerHTML = ""; invL.innerHTML = "";
+        let totalGeral = 0, tBRL = 0, tEUR = 0;
+
+        db.inv.forEach(i => {
+            if(i.m === 'EUR') tEUR += i.s; else tBRL += i.s;
+            invL.innerHTML += `<div class="item" style="flex-direction:column; align-items:flex-start; padding: 10px; border-left: 4px solid ${i.m === 'EUR' ? 'var(--euro)' : 'var(--accent)'}">
+                <div style="display:flex; justify-content:space-between; width:100%; font-size:13px;">
+                    <strong>${i.b}</strong> <b>${fMoeda(i.s, i.m)}</b>
+                </div>
+                <div style="margin-top:6px;">
+                    <button class="btn-small" style="background:var(--accent);" onclick="addVInv(${i.id})">+ Valor</button>
+                    <button class="btn-small" style="background:var(--blue); color:white;" onclick="abrirModalInv(${i.id})">✏️</button>
+                    <button class="btn-small" style="background:var(--danger); color:white;" onclick="delInv(${i.id})">🗑️</button>
+                </div>
+            </div>`;
+        });
+        document.getElementById("patrimonioBRL").innerText = fMoeda(tBRL, 'BRL');
+        document.getElementById("patrimonioEUR").innerText = fMoeda(tEUR, 'EUR');
+
+        const renderSecao = (lista, titulo, tagClass, tagText) => {
+            if(lista.length === 0) return;
+            container.innerHTML += `<div class="section-title">${titulo}</div>`;
+            lista.forEach(i => {
+                totalGeral += i.v;
+                container.innerHTML += `<div class="item">
+                    <div>${i.d} <span class="tag ${tagClass}">${tagText}</span></div>
+                    <div><b>${fMoeda(i.v)}</b> <button onclick="delGasto(${i.id})" style="background:none; color:var(--danger); border:none; margin-left:8px;">🗑️</button></div>
+                </div>`;
+            });
+        };
+        const itens = mes.itens;
+        renderSecao(itens.filter(i => i.cat === 'fixo'), "Fixos Mensais", "tag-fixo", "FIXO");
+        renderSecao(itens.filter(i => i.cat === 'parcelado'), "Compras Parceladas", "tag-parc", "PARCELA");
+        renderSecao(itens.filter(i => i.cat === 'normal' || !i.cat), "Despesas do Mês", "tag-norm", "ÚNICO");
+
+        const sobra = (mes.limite || 0) - totalGeral;
+        const display = document.getElementById("sobraDisplay");
+        display.innerText = fMoeda(sobra);
+        display.style.color = sobra < 0 ? "var(--danger)" : "var(--accent)";
+    }
+    carregarTudo();
+</script>
+</body>
+</html>
