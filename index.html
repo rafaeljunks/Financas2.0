@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Junks Finanças Elite v21</title>
+    <title>Junks Finanças Elite v22</title>
     <style>
         :root {
             --bg: #0b0f1a; --card: #161e2e; --accent: #00d084;
@@ -36,8 +36,10 @@
         
         .tag { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
         .tag-fixo { background: rgba(0, 208, 132, 0.2); color: var(--accent); border: 1px solid var(--accent); }
+        .btn-del-gasto { background: none; color: var(--danger); border: none; padding: 10px; font-size: 18px; cursor: pointer; margin-left: 5px; }
     </style>
-</head>
+</head><link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
 <body>
 
 <div id="modalInv">
@@ -77,7 +79,7 @@
 
     <div class="card">
         <h3>💸 Novo Gasto</h3>
-        <input type="text" id="desc" placeholder="Ex: Mercado, Aluguer...">
+        <input type="text" id="desc" placeholder="Descrição">
         <div class="grid">
             <input type="number" id="val" placeholder="Valor" step="0.01">
             <select id="parcelas">
@@ -92,7 +94,7 @@
     </div>
 
     <div class="card">
-        <h3>⚙️ Configuração & Backup</h3>
+        <h3>⚙️ Configurações</h3>
         <input type="number" id="limiteInput" placeholder="Limite mensal R$" oninput="salvarLimite()">
         <div class="grid">
             <button class="btn-small" style="background:#2d3748; color:white; padding:12px;" onclick="exportarDados()">📤 Exportar</button>
@@ -105,7 +107,7 @@
 </div>
 
 <script>
-    const KEY = "JUNKS_V21_FINAL";
+    const KEY = "JUNKS_V22_FINAL";
     let db = JSON.parse(localStorage.getItem(KEY)) || { meses: {}, fixosMestre: [], inv: [] };
 
     const inputMes = document.getElementById("mesSelecao");
@@ -115,33 +117,23 @@
         return v.toLocaleString(moeda === 'EUR' ? 'de-DE' : 'pt-BR', { style: 'currency', currency: moeda });
     }
 
-    // --- AJUSTE DOS GASTOS FIXOS ---
     function carregarTudo() {
         const mes = inputMes.value;
         if (!db.meses[mes]) db.meses[mes] = { limite: 0, itens: [] };
         
-        // Verifica se há fixos mestre que não estão no mês atual
         const pendentes = db.fixosMestre.filter(f => !db.meses[mes].itens.some(i => i.d === f.d));
-        
         if (pendentes.length > 0) {
-            if (confirm(`Existem ${pendentes.length} gastos fixos pendentes para este mês. Deseja importá-los agora?`)) {
-                importarFixosAutomatico(mes, pendentes);
-                return; // O render será chamado dentro do salvar()
+            if (confirm(`Importar ${pendentes.length} gastos fixos?`)) {
+                pendentes.forEach(f => {
+                    db.meses[mes].itens.push({...f, id: Date.now() + Math.random(), cat: 'fixo'});
+                });
+                salvar();
             }
         }
-
         document.getElementById("limiteInput").value = db.meses[mes].limite || "";
         render();
     }
 
-    function importarFixosAutomatico(mes, lista) {
-        lista.forEach(f => {
-            db.meses[mes].itens.push({...f, id: Date.now() + Math.random(), cat: 'fixo'});
-        });
-        salvar();
-    }
-
-    // --- GESTÃO DE GASTOS ---
     function addGasto() {
         const d = document.getElementById("desc").value;
         const v = parseFloat(document.getElementById("val").value);
@@ -151,9 +143,7 @@
         if(!d || isNaN(v)) return;
 
         if(fixo && p === 1) {
-            if(!db.fixosMestre.some(f => f.d === d)) {
-                db.fixosMestre.push({d, v, cat: 'fixo'});
-            }
+            if(!db.fixosMestre.some(f => f.d === d)) db.fixosMestre.push({d, v, cat: 'fixo'});
         }
 
         for(let i=0; i<p; i++) {
@@ -162,7 +152,7 @@
             let mF = dt.toISOString().slice(0, 7);
             if(!db.meses[mF]) db.meses[mF] = { limite: 0, itens: [] };
             db.meses[mF].itens.push({ 
-                id: Date.now()+i, 
+                id: Date.now() + Math.random(), // ID único e robusto
                 d: d + (p > 1 ? ` (${i+1}/${p})` : ""), 
                 v: v/p, 
                 cat: (fixo && p === 1) ? 'fixo' : (p > 1 ? 'parcelado' : 'normal') 
@@ -172,7 +162,15 @@
         salvar();
     }
 
-    // --- INVESTIMENTOS ---
+    // FUNÇÃO CORRIGIDA PARA EXCLUIR
+    function delGasto(id) {
+        if(confirm("Deseja excluir este gasto?")) {
+            const mes = inputMes.value;
+            db.meses[mes].itens = db.meses[mes].itens.filter(item => item.id !== id);
+            salvar();
+        }
+    }
+
     function abrirModalInv(id = null) {
         document.getElementById("modalInv").style.display = "flex";
         if(id) {
@@ -213,10 +211,8 @@
         if(v) { i.s += parseFloat(v.replace(',','.')); salvar(); }
     }
 
-    // --- SISTEMA ---
-    function delGasto(id) { db.meses[inputMes.value].itens = db.meses[inputMes.value].itens.filter(x => x.id !== id); salvar(); }
     function salvarLimite() { db.meses[inputMes.value].limite = parseFloat(document.getElementById("limiteInput").value) || 0; salvar(); }
-    function salvar() { localStorage.setItem(KEY, JSON.stringify(db)); carregarTudo(); }
+    function salvar() { localStorage.setItem(KEY, JSON.stringify(db)); render(); }
 
     function exportarDados() {
         const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
@@ -266,11 +262,14 @@
                 totalGeral += i.v;
                 container.innerHTML += `<div class="item">
                     <div>${i.d} <span class="tag ${tagClass}">${tagText}</span></div>
-                    <div><b>${fMoeda(i.v)}</b> <button onclick="delGasto(${i.id})" style="background:none; color:var(--danger); border:none; margin-left:8px;">🗑️</button></div>
+                    <div style="display:flex; align-items:center;">
+                        <b>${fMoeda(i.v)}</b> 
+                        <button class="btn-del-gasto" onclick="delGasto(${i.id})">🗑️</button>
+                    </div>
                 </div>`;
             });
         };
-        const itens = mes.itens;
+        const itens = mes.itens || [];
         renderSecao(itens.filter(i => i.cat === 'fixo'), "Fixos Mensais", "tag-fixo", "FIXO");
         renderSecao(itens.filter(i => i.cat === 'parcelado'), "Compras Parceladas", "tag-parc", "PARCELA");
         renderSecao(itens.filter(i => i.cat === 'normal' || !i.cat), "Despesas do Mês", "tag-norm", "ÚNICO");
@@ -281,6 +280,10 @@
         display.style.color = sobra < 0 ? "var(--danger)" : "var(--accent)";
     }
     carregarTudo();
+</script><script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
 </script>
 </body>
 </html>
